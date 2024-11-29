@@ -1,0 +1,60 @@
+Prerequisites:
+Run as Administrator: Network sniffing requires elevated permissions.
+Dependencies: Python must be installed.
+
+
+-----------------------------------------------------------------------------------------------------------
+import socket
+import struct
+import textwrap
+
+# Function to unpack Ethernet frame
+def ethernet_frame(data):
+    dest_mac, src_mac, proto = struct.unpack('! 6s 6s H', data[:14])
+    return get_mac_addr(dest_mac), get_mac_addr(src_mac), socket.htons(proto), data[14:]
+
+# Function to format MAC addresses
+def get_mac_addr(bytes_addr):
+    return ':'.join(map('{:02x}'.format, bytes_addr)).upper()
+
+# Main sniffer function
+def main():
+    # Create a raw socket and bind it to the public interface
+    conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+    
+    print("Listening for incoming packets...")
+    
+    while True:
+        raw_data, addr = conn.recvfrom(65536)
+        dest_mac, src_mac, eth_proto, data = ethernet_frame(raw_data)
+        print('\nEthernet Frame:')
+        print(f'Destination: {dest_mac}, Source: {src_mac}, Protocol: {eth_proto}')
+        
+        # Process IP packets
+        if eth_proto == 8:
+            (version, header_length, ttl, proto, src, target, data) = ipv4_packet(data)
+            print(f'IPv4 Packet: Version: {version}, Header Length: {header_length}, TTL: {ttl}')
+            print(f'Source: {src}, Target: {target}')
+            
+# Function to unpack IPv4 packets
+def ipv4_packet(data):
+    version_header_length = data[0]
+    version = version_header_length >> 4
+    header_length = (version_header_length & 15) * 4
+    ttl, proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', data[:20])
+    return version, header_length, ttl, proto, ipv4(src), ipv4(target), data[header_length:]
+
+# Function to format IP addresses
+def ipv4(addr):
+    return '.'.join(map(str, addr))
+
+if __name__ == "__main__":
+    main()
+
+-------------------------------------------------------------------------------------------------------
+Running the Script:
+Save the script as network_sniffer.py.
+Run it with administrative privileges:
+bash
+Copy code
+sudo python3 network_sniffer.py
